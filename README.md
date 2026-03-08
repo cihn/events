@@ -155,11 +155,24 @@ curl -X POST http://localhost:8080/events \
 
 ## Running Tests
 
+All tests run without any external dependencies (no ClickHouse required). Mock repositories are used for isolation.
+
 ```bash
 go test ./internal/... -v
 ```
 
-Covers: validation rules, dedup cache correctness and concurrency, pipeline batching/backpressure/graceful shutdown, HTTP handler responses.
+With coverage:
+
+```bash
+go test ./internal/... -cover
+```
+
+| Package    | Coverage | What's Tested                                                  |
+|------------|----------|----------------------------------------------------------------|
+| dedup      | 95.5%    | Deterministic ID generation, cache eviction, concurrent access |
+| pipeline   | 83.3%    | Batching, flush triggers, backpressure, graceful shutdown      |
+| validator  | 81.0%    | Required fields, timestamp range, length limits, bulk limits   |
+| handler    | 61.9%    | Single/bulk ingestion, duplicates, backpressure retry, metrics |
 
 ## Environment Variables
 
