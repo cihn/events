@@ -1,0 +1,5 @@
+.git
+.env
+*.exe
+docs/swagger.json
+docs/swagger.yaml

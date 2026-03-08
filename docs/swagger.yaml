@@ -1,0 +1,265 @@
+basePath: /
+definitions:
+  events_internal_dto.BulkEventRequest:
+    properties:
+      events:
+        items:
+          $ref: '#/definitions/events_internal_dto.EventRequest'
+        type: array
+    type: object
+  events_internal_dto.BulkEventResponse:
+    properties:
+      accepted:
+        example: 95
+        type: integer
+      duplicates:
+        example: 3
+        type: integer
+      errors:
+        items:
+          type: string
+        type: array
+      rejected:
+        example: 5
+        type: integer
+    type: object
+  events_internal_dto.ErrorResponse:
+    properties:
+      code:
+        example: VALIDATION_ERROR
+        type: string
+      details:
+        additionalProperties:
+          type: string
+        type: object
+      error:
+        example: validation failed
+        type: string
+    type: object
+  events_internal_dto.EventRequest:
+    properties:
+      campaign_id:
+        example: cmp_987
+        type: string
+      channel:
+        example: web
+        type: string
+      event_name:
+        example: product_view
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      tags:
+        example:
+        - electronics
+        - homepage
+        items:
+          type: string
+        type: array
+      timestamp:
+        example: 1723475612
+        type: integer
+      user_id:
+        example: user_123
+        type: string
+    type: object
+  events_internal_dto.EventResponse:
+    properties:
+      event_id:
+        example: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
+        type: string
+      status:
+        example: accepted
+        type: string
+    type: object
+  events_internal_dto.MetricBreakdown:
+    properties:
+      key:
+        example: web
+        type: string
+      total_count:
+        example: 9200
+        type: integer
+      unique_users:
+        example: 5100
+        type: integer
+    type: object
+  events_internal_dto.MetricsResponse:
+    properties:
+      breakdown:
+        items:
+          $ref: '#/definitions/events_internal_dto.MetricBreakdown'
+        type: array
+      event_name:
+        example: product_view
+        type: string
+      from:
+        example: 1723400000
+        type: integer
+      to:
+        example: 1723500000
+        type: integer
+      total_count:
+        example: 15432
+        type: integer
+      unique_users:
+        example: 8721
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: |-
+    High-throughput event ingestion and analytics service backed by ClickHouse.
+    Supports single and bulk event ingestion with async batched writes,
+    in-memory deduplication, and aggregated metrics queries.
+  title: Events
+  version: "1.0"
+paths:
+  /events:
+    post:
+      consumes:
+      - application/json
+      description: Validates and enqueues a single event for async persistence to
+        ClickHouse
+      parameters:
+      - description: Event payload
+        in: body
+        name: event
+        required: true
+        schema:
+          $ref: '#/definitions/events_internal_dto.EventRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Duplicate event (idempotent)
+          schema:
+            $ref: '#/definitions/events_internal_dto.EventResponse'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/events_internal_dto.EventResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/events_internal_dto.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/events_internal_dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/events_internal_dto.ErrorResponse'
+      summary: Ingest a single event
+      tags:
+      - events
+  /events/bulk:
+    post:
+      consumes:
+      - application/json
+      description: Validates and enqueues multiple events for async persistence
+      parameters:
+      - description: Bulk event payload
+        in: body
+        name: events
+        required: true
+        schema:
+          $ref: '#/definitions/events_internal_dto.BulkEventRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/events_internal_dto.BulkEventResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/events_internal_dto.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/events_internal_dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/events_internal_dto.ErrorResponse'
+      summary: Ingest events in bulk
+      tags:
+      - events
+  /health/live:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Liveness probe
+      tags:
+      - health
+  /health/ready:
+    get:
+      description: Checks ClickHouse connectivity and returns pipeline stats
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Readiness probe
+      tags:
+      - health
+  /metrics:
+    get:
+      description: Returns total count, unique users, and optional breakdown by channel
+        or time bucket
+      parameters:
+      - description: Event name filter
+        in: query
+        name: event_name
+        required: true
+        type: string
+      - description: Start timestamp (unix seconds)
+        in: query
+        name: from
+        required: true
+        type: integer
+      - description: End timestamp (unix seconds)
+        in: query
+        name: to
+        required: true
+        type: integer
+      - description: 'Aggregation dimension: channel, hourly, daily'
+        in: query
+        name: group_by
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/events_internal_dto.MetricsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/events_internal_dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/events_internal_dto.ErrorResponse'
+      summary: Query aggregated event metrics
+      tags:
+      - metrics
+swagger: "2.0"

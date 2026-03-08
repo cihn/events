@@ -1,0 +1,45 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=clickhouse
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--password", "clickhouse", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  event-service:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - CLICKHOUSE_ADDR=clickhouse:9000
+      - CLICKHOUSE_DATABASE=events_db
+      - CLICKHOUSE_USERNAME=default
+      - CLICKHOUSE_PASSWORD=clickhouse
+      - CLICKHOUSE_PROTOCOL=native
+      - PIPELINE_BUFFER_SIZE=100000
+      - PIPELINE_WORKERS=4
+      - PIPELINE_BATCH_SIZE=5000
+      - PIPELINE_FLUSH_INTERVAL=500ms
+      - DEDUP_CACHE_SIZE=1000000
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  clickhouse_data:
